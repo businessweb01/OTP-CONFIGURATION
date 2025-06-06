@@ -1,69 +1,83 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
+import { db } from './firebase.js';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  deleteDoc,
+} from 'firebase/firestore';
 
 const router = express.Router();
-const otpStore = new Map(); // simple in-memory store { email: otp }
 
 function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Configure Nodemailer transporter with SMTP details from environment variables
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST, // e.g. smtp.gmail.com
-  port: Number(process.env.SMTP_PORT) || 587, // usually 587 or 465
-  secure: process.env.SMTP_SECURE === 'true', // true for port 465, false for 587
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
-    user: process.env.SMTP_USER, // SMTP username
-    pass: process.env.SMTP_PASS, // SMTP password or app password
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
-// Send OTP endpoint
+// 🚀 SEND OTP
 router.post('/', async (req, res) => {
   const { to_email } = req.body;
-
   if (!to_email) return res.status(400).json({ success: false, message: 'Email required' });
 
   try {
     const otp = generateOtp();
-    otpStore.set(to_email, otp);
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes from now
 
-    // Prepare email content
-   const mailOptions = {
+    // Save to Firestore
+    await setDoc(doc(db, 'otp', to_email), { otp, expiresAt });
+
+    await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: to_email,
       subject: '🚦 SIKLO Email Verification - Your OTP Code 🛺',
-      text: `Your OTP code is ${otp} 🛺. It is valid for 5 minutes.`,
-      html: `
-        <p>Your OTP code is <strong>${otp} 🛺</strong>. It is valid for 5 minutes.</p>
-        <p>Thank you for using <span style="font-weight:bold;">SIKLO</span> 🛺!</p>
-      `,
-    };
-    // Send mail with defined transport object
-    await transporter.sendMail(mailOptions);
+      html: `<p>Your OTP is <strong>${otp} 🛺</strong>. Valid for 5 minutes.</p>`,
+    });
 
-    res.status(200).json({ success: true, message: 'OTP sent' });
-  } catch (error) {
-    console.error('Nodemailer Error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.json({ success: true, message: 'OTP sent' });
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Verify OTP endpoint
-router.post('/verify-otp', (req, res) => {
-  const { to_email, otp } = req.body;
+// ✅ VERIFY OTP
+router.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP required' });
 
-  if (!to_email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP required' });
+  try {
+    const ref = doc(db, 'otp', email);
+    const docSnap = await getDoc(ref);
 
-  const validOtp = otpStore.get(to_email);
+    if (!docSnap.exists()) return res.status(400).json({ success: false, message: 'No OTP found for this email' });
 
-  if (validOtp === otp) {
-    otpStore.delete(to_email); // invalidate OTP after verification
-    return res.status(200).json({ success: true, message: 'OTP verified' });
+    const { otp: storedOtp, expiresAt } = docSnap.data();
+
+    if (Date.now() > expiresAt) {
+      await deleteDoc(ref);
+      return res.status(400).json({ success: false, message: 'OTP expired' });
+    }
+
+    if (storedOtp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    await deleteDoc(ref); // Invalidate after success
+    res.json({ success: true, message: 'OTP verified' });
+  } catch (err) {
+    console.error('Verify OTP error:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
-
-  res.status(400).json({ success: false, message: 'Invalid OTP' });
 });
 
 export default router;
