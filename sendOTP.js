@@ -1,16 +1,16 @@
+// sendOTP.js
 import express from 'express';
 import emailjs from '@emailjs/nodejs';
 
 const router = express.Router();
-
-const otpStore = new Map(); // simple in-memory store { email: otp }
+const otpStore = new Map();
 
 function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Send OTP endpoint
-router.post('/send-otp', async (req, res) => {
+// Now just '/' instead of '/send-otp'
+router.post('/', async (req, res) => {
   const { to_email } = req.body;
 
   if (!to_email) return res.status(400).json({ success: false, message: 'Email required' });
@@ -36,7 +36,7 @@ router.post('/send-otp', async (req, res) => {
   }
 });
 
-// Verify OTP endpoint
+// Same with verify endpoint
 router.post('/verify-otp', (req, res) => {
   const { to_email, otp } = req.body;
 
@@ -45,7 +45,7 @@ router.post('/verify-otp', (req, res) => {
   const validOtp = otpStore.get(to_email);
 
   if (validOtp === otp) {
-    otpStore.delete(to_email); // invalidate OTP after verification
+    otpStore.delete(to_email);
     return res.status(200).json({ success: true, message: 'OTP verified' });
   }
 
