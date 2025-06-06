@@ -10,7 +10,7 @@ function generateOtp() {
 }
 
 // Send OTP endpoint
-router.post('/send-otp', async (req, res) => {
+router.post('/', async (req, res) => {
   const { to_email } = req.body;
 
   if (!to_email) return res.status(400).json({ success: false, message: 'Email required' });
