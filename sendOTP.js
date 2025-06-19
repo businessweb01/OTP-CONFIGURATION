@@ -59,7 +59,7 @@ router.post('/verify-otp', async (req, res) => {
     const ref = doc(db, 'otp', email);
     const docSnap = await getDoc(ref);
 
-    if (!docSnap.exists()) return res.status(400).json({ success: false, message: 'No OTP found for this email' });
+    if (!docSnap.exists()) return res.status(400).json({ success: false, message: 'No OTP found' });
 
     const { otp: storedOtp, expiresAt } = docSnap.data();
 
@@ -68,16 +68,17 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, message: 'OTP expired' });
     }
 
-    if (storedOtp !== otp) {
+    if (otp !== storedOtp) {
       return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
 
-    await deleteDoc(ref); // Invalidate after success
+    await deleteDoc(ref); // ✅ Invalidate immediately
     res.json({ success: true, message: 'OTP verified' });
   } catch (err) {
     console.error('Verify OTP error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
 
 export default router;
