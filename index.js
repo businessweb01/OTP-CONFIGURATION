@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import sendOtpRoute from './sendOTP.js';
+import { default as sendOtpRoute } from './sendOTP.js'
 
 dotenv.config();
 const app = express();
