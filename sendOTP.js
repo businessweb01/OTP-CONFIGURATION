@@ -14,7 +14,8 @@ function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-const transporter = nodemailer.createTransporter({
+// ✅ Fixed: createTransport (not createTransporter)
+const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   secure: process.env.SMTP_SECURE === 'true',
@@ -80,5 +81,4 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// This is the missing line!
 export default router;
